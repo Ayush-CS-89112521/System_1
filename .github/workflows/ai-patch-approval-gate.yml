@@ -1,0 +1,55 @@
+name: ai-patch-approval-gate
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce-ai-review-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check For Required AI Review Label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = context.payload.pull_request.number;
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100
+            });
+
+            const highRiskPatterns = [
+              /^fixforward\//,
+              /^devflow\/apps\/agent-host\//,
+              /^copilot-autopsy\/src\/analyzer\//,
+              /^Obsidian Memory\/src\/adapters\//
+            ];
+
+            const touchesHighRisk = files.some(file =>
+              highRiskPatterns.some(pattern => pattern.test(file.filename))
+            );
+
+            if (!touchesHighRisk) {
+              core.info("No high-risk AI automation paths changed. Gate passed.");
+              return;
+            }
+
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            const requiredLabel = "ai-patch-reviewed";
+
+            if (!labels.includes(requiredLabel)) {
+              core.setFailed(
+                "High-risk automation paths changed. Add label 'ai-patch-reviewed' after human review."
+              );
+              return;
+            }
+
+            core.info("Required label found. Gate passed.");

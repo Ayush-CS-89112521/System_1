@@ -1,0 +1,102 @@
+name: path-quality-gates
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      copilot_autopsy: ${{ steps.filter.outputs.copilot_autopsy }}
+      a11y_guard: ${{ steps.filter.outputs.a11y_guard }}
+      devflow: ${{ steps.filter.outputs.devflow }}
+      fixforward: ${{ steps.filter.outputs.fixforward }}
+      obsidian_memory: ${{ steps.filter.outputs.obsidian_memory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Changed Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            copilot_autopsy:
+              - 'copilot-autopsy/**'
+            a11y_guard:
+              - 'democratizequality-a11y-guard/**'
+            devflow:
+              - 'devflow/**'
+            fixforward:
+              - 'fixforward/**'
+            obsidian_memory:
+              - 'Obsidian Memory/**'
+
+  node-checks:
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.copilot_autopsy == 'true' || needs.detect.outputs.devflow == 'true' || needs.detect.outputs.obsidian_memory == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Copilot Autopsy Checks
+        if: needs.detect.outputs.copilot_autopsy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "copilot-autopsy"
+          npm ci
+          npm run lint
+          npm test
+
+      - name: Run DevFlow Agent Checks
+        if: needs.detect.outputs.devflow == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f "devflow/apps/agent/package.json" ]; then
+            cd "devflow/apps/agent"
+            npm ci
+            npm test
+          fi
+
+      - name: Run Obsidian Memory Checks
+        if: needs.detect.outputs.obsidian_memory == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "Obsidian Memory"
+          npm ci
+          npm test
+
+  python-checks:
+    runs-on: ubuntu-latest
+    needs: detect
+    if: needs.detect.outputs.fixforward == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install And Validate Fixforward
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "fixforward"
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip check

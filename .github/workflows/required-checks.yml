@@ -1,0 +1,16 @@
+name: required-checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report Required Checks
+        run: |
+          echo "This workflow documents required baseline checks for branch protection."
+          echo "Required workflows: security-baseline, path-quality-gates"

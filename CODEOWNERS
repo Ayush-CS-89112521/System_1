@@ -1,0 +1,7 @@
+# Consolidation root ownership
+* @SeginusAlpha
+
+# Security-sensitive docs and scripts
+/docs/SECURITY_BASELINE.md @SeginusAlpha
+/scripts/security-audit.ps1 @SeginusAlpha
+/.github/pull_request_template.md @SeginusAlpha
