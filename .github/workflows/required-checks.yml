@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   gate-summary:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Report Required Checks
         run: |
