@@ -4,8 +4,12 @@ Param(
     [string]$AgentId = "agent",
     [ValidateSet("wait", "terminate")]
     [string]$Strategy = "wait",
-    [int]$WaitSeconds = 30,
+    [int]$MaxRetries = 5,
+    [int]$BaseBackoffMs = 1000,
+    [int]$JitterMs = 500,
+    [int]$HeartbeatSeconds = 60,
     [int]$TtlSeconds = 1800,
+    [string]$ObsidianLogPath = ".ops/obsidian-events.md",
     [string[]]$FixforwardArgs
 )
 
@@ -23,7 +27,11 @@ $cmd = @(
     "--db-path", $DbPath,
     "--agent-id", $AgentId,
     "--strategy", $Strategy,
-    "--wait-seconds", "$WaitSeconds",
+    "--max-retries", "$MaxRetries",
+    "--base-backoff-ms", "$BaseBackoffMs",
+    "--jitter-ms", "$JitterMs",
+    "--heartbeat-seconds", "$HeartbeatSeconds",
+    "--obsidian-log-path", $ObsidianLogPath,
     "--ttl-seconds", "$TtlSeconds"
 )
 

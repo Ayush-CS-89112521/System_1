@@ -35,8 +35,17 @@
 
 - [ ] Define target folder layout.
 - [ ] Move projects into workspace with history-preserving strategy.
-- [ ] Add workspace-level scripts for validation.
+- [x] Add workspace-level scripts for validation.
 - [ ] Validate all CLI entry points post-move.
+
+## Phase 6: Proxy And Runtime Hardening
+
+- [x] Add fail-closed safety proxy service skeleton.
+- [x] Add SQLite budget/spend schema and policy defaults.
+- [x] Add linear jitter backoff and heartbeat support for guarded fixforward runs.
+- [x] Add Windows pre-flight stale-lock recovery script.
+- [x] Add panic kill-switch script for automation gate disable.
+- [x] Add observer protocol hardening to watchdog unlock workflow.
 
 ## Phase 5: Hardening And Enforcement
 

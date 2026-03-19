@@ -31,6 +31,26 @@ CREATE TABLE IF NOT EXISTS automation_gates (
     failure_count INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS budget_policy (
+    policy_id TEXT PRIMARY KEY,
+    max_daily_budget REAL NOT NULL,
+    max_tokens_per_request INTEGER NOT NULL,
+    prompt_token_rate REAL NOT NULL,
+    completion_token_rate REAL NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS spend_ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    request_id TEXT,
+    actor_id TEXT,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    cost REAL NOT NULL DEFAULT 0.0,
+    status TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS locks (
     lock_key TEXT PRIMARY KEY,
     owner_agent_id TEXT NOT NULL,
@@ -54,6 +74,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_logs_diff_hash
 
 CREATE INDEX IF NOT EXISTS idx_locks_expires_at
     ON locks (expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_spend_ledger_timestamp
+    ON spend_ledger (timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_spend_ledger_actor
+    ON spend_ledger (actor_id, timestamp DESC);
 """
 
 
@@ -68,6 +94,20 @@ def init_db(db_path: Path) -> None:
             ON CONFLICT(gate_id) DO NOTHING
             """,
             ("global_kill_switch", 1, 0),
+        )
+        conn.execute(
+            """
+            INSERT INTO budget_policy (
+                policy_id,
+                max_daily_budget,
+                max_tokens_per_request,
+                prompt_token_rate,
+                completion_token_rate
+            )
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(policy_id) DO NOTHING
+            """,
+            ("default", 20.0, 8192, 0.0000025, 0.00001),
         )
         conn.commit()
 

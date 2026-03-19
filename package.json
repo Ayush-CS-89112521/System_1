@@ -1,0 +1,20 @@
+{
+  "name": "building-system-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Federated workspace orchestration and safety controls",
+  "packageManager": "pnpm@9.12.0",
+  "workspaces": [
+    "services/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "proxy:start": "pnpm --filter safety-proxy start"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.3"
+  }
+}

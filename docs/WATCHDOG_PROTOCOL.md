@@ -28,6 +28,9 @@ Prevent runaway AI-driven commit bursts from draining API usage or destabilizing
 
 - `WATCHDOG_AI_ACTORS`
 - `WATCHDOG_THRESHOLD_PER_HOUR`
+- `WATCHDOG_UNLOCK_ALLOWED_ACTORS`
+- `WATCHDOG_UNLOCK_ALLOWED_SOURCES`
+- `WATCHDOG_UNLOCK_MAX_AGE_SECONDS`
 
 Recommended defaults:
 
@@ -38,6 +41,7 @@ Recommended defaults:
 
 - `WATCHDOG_ALERT_WEBHOOK_URL`
 - `WATCHDOG_UNLOCK_TOKEN`
+- `WATCHDOG_UNLOCK_HMAC_SECRET` (optional but recommended)
 
 ## Unlock Command
 
@@ -50,6 +54,9 @@ Expected payload keys:
 
 - `command=unlock`
 - `unlock_token=<WATCHDOG_UNLOCK_TOKEN>`
+- `source=<manual|slack|discord|telegram>`
+- `timestamp=<ISO-8601 UTC>`
+- `signature=<sha256-hmac(command:source:timestamp)>` when HMAC secret is configured
 
 Example repository_dispatch call:
 
@@ -95,12 +102,13 @@ PowerShell wrapper:
 Python wrapper:
 
 ```bash
-python scripts/run-fixforward-guarded.py --project-path ../fixforward --agent-id agent --strategy wait --wait-seconds 30
+python scripts/run-fixforward-guarded.py --project-path ../fixforward --agent-id agent --strategy wait --max-retries 5 --base-backoff-ms 1000 --jitter-ms 500 --heartbeat-seconds 60
 ```
 
 Behavior:
 
 1. Acquire lock in `locks` table before run
-2. If claim exists, wait or terminate by strategy
+2. If claim exists, use linear jitter retry with max attempts
 3. Release lock after process exits
 4. Append lock lifecycle events to `agent_logs`
+5. Log concurrency exhaustion to Obsidian-compatible markdown event log

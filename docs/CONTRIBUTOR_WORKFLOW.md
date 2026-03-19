@@ -26,6 +26,7 @@
 1. Secret scan must pass.
 2. Dependency audit must pass.
 3. Path-based tests and lint checks must pass for changed projects.
+4. Keep worker processes transient; only proxy and SQLite coordination are expected to persist.
 
 ## Documentation
 

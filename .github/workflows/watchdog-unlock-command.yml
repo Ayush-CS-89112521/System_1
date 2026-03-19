@@ -25,9 +25,14 @@ jobs:
         uses: actions/github-script@v7
         env:
           WATCHDOG_UNLOCK_TOKEN: ${{ secrets.WATCHDOG_UNLOCK_TOKEN }}
+          WATCHDOG_UNLOCK_HMAC_SECRET: ${{ secrets.WATCHDOG_UNLOCK_HMAC_SECRET }}
           WATCHDOG_ALERT_WEBHOOK_URL: ${{ secrets.WATCHDOG_ALERT_WEBHOOK_URL }}
+          WATCHDOG_UNLOCK_ALLOWED_ACTORS: ${{ vars.WATCHDOG_UNLOCK_ALLOWED_ACTORS }}
+          WATCHDOG_UNLOCK_ALLOWED_SOURCES: ${{ vars.WATCHDOG_UNLOCK_ALLOWED_SOURCES }}
+          WATCHDOG_UNLOCK_MAX_AGE_SECONDS: ${{ vars.WATCHDOG_UNLOCK_MAX_AGE_SECONDS }}
         with:
           script: |
+            const crypto = require("node:crypto");
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const lockLabel = "watchdog-lock";
@@ -42,7 +47,31 @@ jobs:
 
             const command = getInput("command", "").toLowerCase();
             const providedToken = getInput("unlock_token", "");
+            const providedSource = getInput("source", "manual").toLowerCase();
+            const providedTimestamp = getInput("timestamp", "");
+            const providedSignature = getInput("signature", "");
             const expectedToken = (process.env.WATCHDOG_UNLOCK_TOKEN || "").trim();
+            const maxAgeSeconds = Number(process.env.WATCHDOG_UNLOCK_MAX_AGE_SECONDS || "300");
+
+            const allowedActors = (process.env.WATCHDOG_UNLOCK_ALLOWED_ACTORS || context.actor)
+              .split(",")
+              .map(x => x.trim())
+              .filter(Boolean);
+
+            const allowedSources = (process.env.WATCHDOG_UNLOCK_ALLOWED_SOURCES || "manual,slack,discord,telegram")
+              .split(",")
+              .map(x => x.trim().toLowerCase())
+              .filter(Boolean);
+
+            if (!allowedActors.includes(context.actor)) {
+              core.setFailed(`Actor ${context.actor} is not allowed to unlock watchdog gate.`);
+              return;
+            }
+
+            if (!allowedSources.includes(providedSource)) {
+              core.setFailed(`Source '${providedSource}' is not allowed.`);
+              return;
+            }
 
             if (command !== "unlock") {
               core.setFailed("Invalid command. Expected 'unlock'.");
@@ -57,6 +86,39 @@ jobs:
             if (providedToken !== expectedToken) {
               core.setFailed("Unlock token mismatch.");
               return;
+            }
+
+            if (context.eventName === "repository_dispatch") {
+              if (!providedTimestamp) {
+                core.setFailed("repository_dispatch unlock requires a timestamp.");
+                return;
+              }
+
+              const parsedTimestamp = Date.parse(providedTimestamp);
+              if (Number.isNaN(parsedTimestamp)) {
+                core.setFailed("Invalid timestamp format. Use ISO-8601 string.");
+                return;
+              }
+
+              const ageSeconds = Math.floor((Date.now() - parsedTimestamp) / 1000);
+              if (ageSeconds < 0 || ageSeconds > maxAgeSeconds) {
+                core.setFailed(`Unlock request expired (age=${ageSeconds}s, max=${maxAgeSeconds}s).`);
+                return;
+              }
+
+              const hmacSecret = (process.env.WATCHDOG_UNLOCK_HMAC_SECRET || "").trim();
+              if (hmacSecret) {
+                const material = `${command}:${providedSource}:${providedTimestamp}`;
+                const expectedSignature = crypto
+                  .createHmac("sha256", hmacSecret)
+                  .update(material)
+                  .digest("hex");
+
+                if (!providedSignature || providedSignature !== expectedSignature) {
+                  core.setFailed("Unlock signature mismatch.");
+                  return;
+                }
+              }
             }
 
             const issues = await github.rest.issues.listForRepo({
@@ -100,6 +162,7 @@ jobs:
                     type: "watchdog_unlock",
                     repo: `${owner}/${repo}`,
                     actor: context.actor,
+                    source: providedSource,
                     closedLocks: lockIssues.map(issue => issue.number),
                     at: new Date().toISOString()
                   })
