@@ -21,6 +21,8 @@
 - [x] Add CI workflow for dependency audits.
 - [x] Add CI workflow for path-based test execution.
 - [x] Add patch approval gate for AI-generated changes.
+- [x] Add watchdog rate-limit gate and unlock command workflows.
+- [x] Add shared SQLite initialization and guarded fixforward runner scripts.
 
 ## Phase 3: Documentation Consolidation
 

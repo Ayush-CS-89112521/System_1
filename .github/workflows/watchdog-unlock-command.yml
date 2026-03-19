@@ -1,0 +1,112 @@
+name: watchdog-unlock-command
+
+on:
+  repository_dispatch:
+    types: [watchdog_unlock]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Unlock command value (must be unlock)
+        required: true
+        default: unlock
+      unlock_token:
+        description: Shared unlock token
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  unlock:
+    runs-on: windows-latest
+    steps:
+      - name: Unlock Watchdog Gate
+        uses: actions/github-script@v7
+        env:
+          WATCHDOG_UNLOCK_TOKEN: ${{ secrets.WATCHDOG_UNLOCK_TOKEN }}
+          WATCHDOG_ALERT_WEBHOOK_URL: ${{ secrets.WATCHDOG_ALERT_WEBHOOK_URL }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const lockLabel = "watchdog-lock";
+            const lockTitle = "[Watchdog] AI rate lock active";
+
+            function getInput(name, fallback = "") {
+              if (context.eventName === "workflow_dispatch") {
+                return (context.payload.inputs?.[name] || fallback).trim();
+              }
+              return (context.payload.client_payload?.[name] || fallback).toString().trim();
+            }
+
+            const command = getInput("command", "").toLowerCase();
+            const providedToken = getInput("unlock_token", "");
+            const expectedToken = (process.env.WATCHDOG_UNLOCK_TOKEN || "").trim();
+
+            if (command !== "unlock") {
+              core.setFailed("Invalid command. Expected 'unlock'.");
+              return;
+            }
+
+            if (!expectedToken) {
+              core.setFailed("WATCHDOG_UNLOCK_TOKEN is not configured.");
+              return;
+            }
+
+            if (providedToken !== expectedToken) {
+              core.setFailed("Unlock token mismatch.");
+              return;
+            }
+
+            const issues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              labels: lockLabel,
+              per_page: 100
+            });
+
+            const lockIssues = issues.data.filter(issue => issue.title === lockTitle);
+
+            if (lockIssues.length === 0) {
+              core.info("No active watchdog lock issue found.");
+              return;
+            }
+
+            for (const issue of lockIssues) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body: `Watchdog unlock command accepted at ${new Date().toISOString()} by ${context.actor}.`
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: "closed"
+              });
+            }
+
+            const url = process.env.WATCHDOG_ALERT_WEBHOOK_URL;
+            if (url) {
+              try {
+                await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "watchdog_unlock",
+                    repo: `${owner}/${repo}`,
+                    actor: context.actor,
+                    closedLocks: lockIssues.map(issue => issue.number),
+                    at: new Date().toISOString()
+                  })
+                });
+              } catch (error) {
+                core.warning(`Webhook notify failed: ${error.message}`);
+              }
+            }
+
+            core.info(`Closed ${lockIssues.length} watchdog lock issue(s).`);

@@ -29,6 +29,7 @@ This folder is the consolidation root for a federated monorepo strategy.
 - docs/SECURITY_BASELINE.md
 - docs/SETUP_MATRIX.md
 - docs/MIGRATION_TRACKER.md
+- docs/WATCHDOG_PROTOCOL.md
 - .github/pull_request_template.md
 - CODEOWNERS
 - scripts/security-audit.ps1

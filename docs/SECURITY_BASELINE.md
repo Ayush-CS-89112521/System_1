@@ -36,6 +36,8 @@ This baseline covers the consolidated workspace and all projects under it.
 - Require explicit user approval before applying generated patches.
 - Store generated patch diffs for audit.
 - Block direct auto-commit on high-risk changes.
+- Enforce watchdog rate-limit lock when AI actor burst threshold is exceeded.
+- Require unlock command flow with token validation before lock removal.
 
 ### 5) Release Safety
 

@@ -1,0 +1,153 @@
+name: rate-limit-gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watchdog:
+    runs-on: windows-latest
+    steps:
+      - name: Enforce AI Rate Limit Gate
+        uses: actions/github-script@v7
+        env:
+          WATCHDOG_AI_ACTORS: ${{ vars.WATCHDOG_AI_ACTORS }}
+          WATCHDOG_THRESHOLD_PER_HOUR: ${{ vars.WATCHDOG_THRESHOLD_PER_HOUR }}
+          WATCHDOG_ALERT_WEBHOOK_URL: ${{ secrets.WATCHDOG_ALERT_WEBHOOK_URL }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const actor = context.actor;
+
+            const lockLabel = "watchdog-lock";
+            const lockTitle = "[Watchdog] AI rate lock active";
+            const threshold = Number(process.env.WATCHDOG_THRESHOLD_PER_HOUR || "10");
+            const actorAllowlist = (process.env.WATCHDOG_AI_ACTORS || "agent")
+              .split(",")
+              .map(x => x.trim())
+              .filter(Boolean);
+
+            async function ensureLabel() {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: lockLabel });
+              } catch (error) {
+                if (error.status === 404) {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name: lockLabel,
+                    color: "d73a4a",
+                    description: "Global watchdog lock for AI commit burst"
+                  });
+                  return;
+                }
+                throw error;
+              }
+            }
+
+            async function getOpenLockIssue() {
+              const issues = await github.rest.issues.listForRepo({
+                owner,
+                repo,
+                state: "open",
+                labels: lockLabel,
+                per_page: 100
+              });
+              return issues.data.find(issue => issue.title === lockTitle) || null;
+            }
+
+            async function postWebhook(payload) {
+              const url = process.env.WATCHDOG_ALERT_WEBHOOK_URL;
+              if (!url) {
+                core.warning("WATCHDOG_ALERT_WEBHOOK_URL is not set; skipping external alert.");
+                return;
+              }
+
+              try {
+                const response = await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                  core.warning(`Webhook alert failed with HTTP ${response.status}`);
+                }
+              } catch (error) {
+                core.warning(`Webhook alert error: ${error.message}`);
+              }
+            }
+
+            await ensureLabel();
+
+            const existingLock = await getOpenLockIssue();
+            if (existingLock) {
+              core.setFailed(`Watchdog lock is active. Resolve issue #${existingLock.number} before merging.`);
+              return;
+            }
+
+            if (!actorAllowlist.includes(actor)) {
+              core.info(`Actor ${actor} is not in WATCHDOG_AI_ACTORS allowlist. Gate passed.`);
+              return;
+            }
+
+            const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+            const commits = await github.paginate(github.rest.repos.listCommits, {
+              owner,
+              repo,
+              author: actor,
+              since,
+              per_page: 100
+            });
+
+            const aiCommits = commits.filter(commit => {
+              const message = commit.commit?.message || "";
+              return message.includes("[AI]");
+            });
+
+            const commitCount = aiCommits.length;
+            core.info(`Actor ${actor} has ${commitCount} [AI] commit(s) in the last hour.`);
+
+            if (actor === "agent" && commitCount > threshold) {
+              const issueBody = [
+                "Global watchdog lock activated.",
+                "",
+                `- Actor: ${actor}`,
+                `- Commits in last hour: ${commitCount}`,
+                `- Threshold: ${threshold}`,
+                `- Activated at: ${new Date().toISOString()}`,
+                "",
+                "Unlock path:",
+                "1. Investigate burst cause.",
+                "2. Trigger watchdog unlock command.",
+                "3. Confirm lock issue is closed."
+              ].join("\n");
+
+              const newIssue = await github.rest.issues.create({
+                owner,
+                repo,
+                title: lockTitle,
+                body: issueBody,
+                labels: [lockLabel]
+              });
+
+              await postWebhook({
+                type: "watchdog_lock",
+                repo: `${owner}/${repo}`,
+                actor,
+                commitsInLastHour: commitCount,
+                threshold,
+                issueNumber: newIssue.data.number,
+                unlockCommand: "unlock"
+              });
+
+              core.setFailed(`Rate limit exceeded for actor '${actor}'. Lock issue #${newIssue.data.number} created.`);
+              return;
+            }
+
+            core.info("Rate-limit gate passed.");
