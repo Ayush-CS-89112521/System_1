@@ -2,6 +2,8 @@
 * @SeginusAlpha
 
 # Security-sensitive docs and scripts
-/docs/SECURITY_BASELINE.md @SeginusAlpha
+/docs/02-governance/SECURITY_BASELINE.md @SeginusAlpha
+/docs/03-implementation/WATCHDOG_PROTOCOL.md @SeginusAlpha
+/docs/04-operations/OPERATIONS_RUNBOOK.md @SeginusAlpha
 /scripts/security-audit.ps1 @SeginusAlpha
 /.github/pull_request_template.md @SeginusAlpha

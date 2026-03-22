@@ -96,7 +96,7 @@ This initializes:
 PowerShell wrapper:
 
 ```powershell
-./scripts/run-fixforward-guarded.ps1 -ProjectPath ../fixforward -AgentId agent -Strategy wait -WaitSeconds 30
+./scripts/run-fixforward-guarded.ps1 -ProjectPath ../fixforward -AgentId agent -Strategy wait -MaxRetries 5 -BaseBackoffMs 1000 -JitterMs 500 -HeartbeatSeconds 60
 ```
 
 Python wrapper:

@@ -26,12 +26,13 @@ This folder is the consolidation root for a federated monorepo strategy.
 
 ## Phase 1 Deliverables
 
-- docs/SECURITY_BASELINE.md
-- docs/SETUP_MATRIX.md
-- docs/MIGRATION_TRACKER.md
-- docs/WATCHDOG_PROTOCOL.md
-- docs/SAFETY_PROXY.md
-- docs/OPERATIONS_RUNBOOK.md
+- docs/README.md
+- docs/00-overview/SETUP_MATRIX.md
+- docs/02-governance/SECURITY_BASELINE.md
+- docs/03-implementation/WATCHDOG_PROTOCOL.md
+- docs/03-implementation/SAFETY_PROXY.md
+- docs/04-operations/OPERATIONS_RUNBOOK.md
+- docs/05-planning/MIGRATION_TRACKER.md
 - .github/pull_request_template.md
 - CODEOWNERS
 - scripts/security-audit.ps1
@@ -40,4 +41,4 @@ This folder is the consolidation root for a federated monorepo strategy.
 
 ## Next
 
-Use docs/MIGRATION_TRACKER.md to execute tasks in order and track completion.
+Use docs/README.md for reading order and docs/05-planning/MIGRATION_TRACKER.md to track execution.
